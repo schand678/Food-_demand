@@ -90,4 +90,3 @@ if st.button("Train XGBoost Model"):
     st.pyplot(plt)
 
 st.success("Streamlit App Ready! 🚀")
-
