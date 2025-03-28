@@ -11,7 +11,7 @@ from sklearn.ensemble import RandomForestRegressor
 from streamlit_folium import folium_static
 
 # Streamlit App Title
-st.title("📍 Food Hamper Prediction & Demand Forecasting")
+st.title("📍 Food Hamper Prediction & Demand Visualization")
 
 # Sidebar: File Uploader
 st.sidebar.header("Upload Your Dataset")
@@ -28,7 +28,7 @@ if uploaded_file is not None:
         st.write(df.head())
 
         # Check if required columns exist
-        required_cols = ["location_name", "latitude", "longitude", "quantity", "timestamp"]
+        required_cols = ["postal_code", "latitude", "longitude", "quantity", "timestamp"]
         missing_cols = [col for col in required_cols if col not in df.columns]
 
         if missing_cols:
@@ -38,7 +38,7 @@ if uploaded_file is not None:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
             df = df.dropna(subset=["timestamp"])  # Remove rows where timestamp is missing
 
-            # Map Visualization
+            # 📍 Map Visualization
             st.subheader("📍 Food Hamper Distribution Map")
 
             # Create a folium map
@@ -49,14 +49,38 @@ if uploaded_file is not None:
             for _, row in df.iterrows():
                 folium.Marker(
                     location=[row["latitude"], row["longitude"]],
-                    popup=f"Location: {row['location_name']} | Hampers: {row['quantity']}",
-                    tooltip=row["location_name"],
+                    popup=f"Postal Code: {row['postal_code']} | Hampers: {row['quantity']}",
+                    tooltip=row["postal_code"],
                 ).add_to(marker_cluster)
 
             folium_static(m)
 
-            # Machine Learning: Predict Hampers for Selected Location Name
-            st.subheader("📊 Predict Hampers for a Specific Location")
+            # 📊 Visualization: Top Postal Codes by Hampers
+            st.subheader("📈 Top Postal Codes by Hamper Distribution")
+            top_postal_codes = df.groupby("postal_code")["quantity"].sum().nlargest(10).reset_index()
+            fig_bar = px.bar(top_postal_codes, x="postal_code", y="quantity",
+                             title="Top 10 Postal Codes by Hamper Distribution",
+                             labels={"quantity": "Total Hampers", "postal_code": "Postal Code"},
+                             color="quantity", color_continuous_scale="Viridis")
+            st.plotly_chart(fig_bar)
+
+            # 📊 Visualization: Time Series Demand Trend
+            st.subheader("📉 Time Series Demand Trend")
+            time_series = df.groupby(df["timestamp"].dt.to_period("M"))["quantity"].sum()
+            fig_line = px.line(x=time_series.index.astype(str), y=time_series.values,
+                               title="Monthly Food Hamper Demand Trend",
+                               labels={"x": "Month", "y": "Total Hampers"})
+            st.plotly_chart(fig_line)
+
+            # 📊 Visualization: Box Plot of Hampers by Postal Code
+            st.subheader("📦 Distribution of Hampers Across Postal Codes")
+            fig_box = px.box(df, x="postal_code", y="quantity",
+                             title="Hamper Distribution per Postal Code",
+                             labels={"quantity": "Hampers", "postal_code": "Postal Code"})
+            st.plotly_chart(fig_box)
+
+            # Machine Learning: Predict Hampers for Selected Postal Code
+            st.subheader("📊 Predict Hampers for a Given Postal Code")
 
             # Train a model
             X = df[["latitude", "longitude"]]
@@ -66,17 +90,17 @@ if uploaded_file is not None:
             model = RandomForestRegressor(n_estimators=100, random_state=42)
             model.fit(X_train, y_train)
 
-            # User Input: Select a Location Name
-            location_selected = st.selectbox("Select a Location", df["location_name"].unique())
+            # User Input: Select a Postal Code
+            postal_code_selected = st.selectbox("Select a Postal Code", df["postal_code"].unique())
 
             if st.button("Predict Hampers"):
-                location_row = df[df["location_name"] == location_selected].iloc[0]
+                location_row = df[df["postal_code"] == postal_code_selected].iloc[0]
                 lat_input, lon_input = location_row["latitude"], location_row["longitude"]
                 prediction = model.predict([[lat_input, lon_input]])[0]
-                st.success(f"📦 Predicted Hampers for {location_selected}: {round(prediction)}")
+                st.success(f"📦 Predicted Hampers for Postal Code {postal_code_selected}: {round(prediction)}")
 
             # Time Series Forecasting with ARIMA
-            st.subheader("📈 Time Series Demand Forecasting")
+            st.subheader("📈 Time Series Demand Forecasting (ARIMA)")
 
             if "timestamp" in df.columns and "quantity" in df.columns:
                 df = df.set_index("timestamp")  # Set timestamp as index
@@ -92,12 +116,12 @@ if uploaded_file is not None:
                     forecast.index = pd.date_range(start=time_series.index[-1], periods=7, freq="M")
 
                     # Plot Predictions
-                    fig, ax = plt.subplots(figsize=(10, 5))
+                    fig_arima, ax = plt.subplots(figsize=(10, 5))
                     ax.plot(time_series.index, time_series, label="Actual")
                     ax.plot(forecast.index, forecast, label="Forecast", linestyle="dashed", color="red")
                     ax.set_title("Food Hamper Demand Forecast (ARIMA)")
                     ax.legend()
-                    st.pyplot(fig)
+                    st.pyplot(fig_arima)
 
                 except Exception as e:
                     st.error(f"⚠️ ARIMA Model Error: {e}")
@@ -107,4 +131,3 @@ if uploaded_file is not None:
 
 else:
     st.warning("⚠️ Please upload a CSV file to proceed.")
-
