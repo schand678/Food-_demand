@@ -27,14 +27,17 @@ if uploaded_file is not None:
         st.subheader("📌 Dataset Preview")
         st.write(df.head())
 
-        # Data Cleaning: Convert timestamp column to datetime
-        if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        # Check if "timestamp" exists
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")  # Convert to datetime
+            df = df.dropna(subset=["timestamp"])  # Drop rows with missing timestamps
+        else:
+            st.error("⚠️ 'timestamp' column is missing in the uploaded dataset. Please check the file.")
 
         # Map Visualization with Folium
         st.subheader("📍 Food Hamper Distribution Map")
 
-        if 'latitude' in df.columns and 'longitude' in df.columns:
+        if "latitude" in df.columns and "longitude" in df.columns:
             map_center = [53.5461, -113.4938]  # Edmonton
             m = folium.Map(location=map_center, zoom_start=10)
             marker_cluster = MarkerCluster().add_to(m)
@@ -52,10 +55,9 @@ if uploaded_file is not None:
         # Time Series Forecasting with ARIMA
         st.subheader("📈 Time Series Demand Forecasting")
 
-        if 'timestamp' in df.columns and 'quantity' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])  # Convert to DateTime format
-            df = df.set_index('timestamp')  # Set timestamp as index
-            time_series = df['quantity'].resample('M').sum()  # Resample to monthly data
+        if "timestamp" in df.columns and "quantity" in df.columns:
+            df = df.set_index("timestamp")  # Set timestamp as index
+            time_series = df["quantity"].resample("M").sum()  # Resample to monthly data
 
             # Train ARIMA Model
             try:
@@ -64,7 +66,7 @@ if uploaded_file is not None:
 
                 # Predict Next 6 Months
                 forecast = model_fit.predict(start=len(time_series), end=len(time_series) + 6)
-                forecast.index = pd.date_range(start=time_series.index[-1], periods=7, freq='M')
+                forecast.index = pd.date_range(start=time_series.index[-1], periods=7, freq="M")
 
                 # Plot Predictions
                 fig, ax = plt.subplots(figsize=(10, 5))
@@ -80,30 +82,34 @@ if uploaded_file is not None:
         # XGBoost Model Training
         st.subheader("⚡ Train XGBoost Model")
 
-        if 'quantity' in df.columns:
-            df['time_index'] = pd.to_datetime(df['timestamp'])
-            df = df.dropna()
-            df['time_index'] = df['time_index'].astype('int64') // 10**9  # Convert to Unix timestamp
+        try:
+            if "timestamp" in df.columns and "quantity" in df.columns:
+                df["time_index"] = df.index.astype("int64") // 10**9  # Convert timestamp to UNIX format
+                X = df[["time_index"]]
+                y = df["quantity"]
 
-            X = df[['time_index']]
-            y = df['quantity']
+                # Train Model
+                model = xgb.XGBRegressor(objective="reg:squarederror", n_estimators=100, learning_rate=0.1)
+                model.fit(X, y)
 
-            # Train Model
-            model = xgb.XGBRegressor(objective="reg:squarederror", n_estimators=100, learning_rate=0.1)
-            model.fit(X, y)
+                # Make Predictions
+                future_dates = pd.date_range(start=df.index.max(), periods=7, freq="D")
+                future_X = np.array([date.timestamp() for date in future_dates]).reshape(-1, 1)
+                future_predictions = model.predict(future_X)
 
-            # Make Predictions
-            future_dates = pd.date_range(start=df.index.max(), periods=7, freq='D')
-            future_X = np.array([date.timestamp() for date in future_dates]).reshape(-1, 1)
-            future_predictions = model.predict(future_X)
+                # Plot Predictions
+                fig2, ax2 = plt.subplots(figsize=(10, 5))
+                ax2.plot(df.index, df["quantity"], label="Actual")
+                ax2.plot(future_dates, future_predictions, label="Forecast", linestyle="dashed", color="red")
+                ax2.set_title("Food Hamper Demand Forecast (XGBoost)")
+                ax2.legend()
+                st.pyplot(fig2)
 
-            # Plot Predictions
-            fig2, ax2 = plt.subplots(figsize=(10, 5))
-            ax2.plot(df.index, df['quantity'], label="Actual")
-            ax2.plot(future_dates, future_predictions, label="Forecast", linestyle="dashed", color="red")
-            ax2.set_title("Food Hamper Demand Forecast (XGBoost)")
-            ax2.legend()
-            st.pyplot(fig2)
+            else:
+                st.error("⚠️ 'timestamp' column is missing or corrupted. Please check the dataset.")
+
+        except Exception as e:
+            st.error(f"⚠️ XGBoost Model Error: {e}")
 
     except Exception as e:
         st.error(f"⚠️ Error reading the file: {e}")
