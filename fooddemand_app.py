@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import folium
@@ -75,6 +74,9 @@ elif menu == "Map Visualization":
 
 # -----------------------
 # Footer
+# -----------------------
+st.sidebar.write("Developed by: **Your Name**")
+st.sidebar.write("📧 Contact: your-email@example.com")
 # -----------------------
 st.sidebar.write("Developed by: **Your Name**")
 st.sidebar.write("📧 Contact: your-email@example.com")
