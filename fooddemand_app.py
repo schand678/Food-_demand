@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import streamlit as st
-import pandas as pd
 import numpy as np
 import plotly.express as px
 import folium
@@ -55,25 +53,29 @@ if uploaded_file is not None:
         st.subheader("📈 Time Series Demand Forecasting")
 
         if 'timestamp' in df.columns and 'quantity' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            time_series = df.groupby(df['timestamp'].dt.to_period('M'))['quantity'].sum()
-            time_series = time_series.to_frame()
+            df['timestamp'] = pd.to_datetime(df['timestamp'])  # Convert to DateTime format
+            df = df.set_index('timestamp')  # Set timestamp as index
+            time_series = df['quantity'].resample('M').sum()  # Resample to monthly data
 
             # Train ARIMA Model
-            model = ARIMA(time_series['quantity'], order=(2, 1, 1))
-            model_fit = model.fit()
+            try:
+                model = ARIMA(time_series, order=(2, 1, 1))
+                model_fit = model.fit()
 
-            # Predict Next 6 Months
-            forecast = model_fit.predict(start=len(time_series), end=len(time_series) + 6)
-            forecast.index = pd.date_range(start=time_series.index[-1].start_time, periods=7, freq='M')
+                # Predict Next 6 Months
+                forecast = model_fit.predict(start=len(time_series), end=len(time_series) + 6)
+                forecast.index = pd.date_range(start=time_series.index[-1], periods=7, freq='M')
 
-            # Plot Predictions
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(time_series.index, time_series['quantity'], label="Actual")
-            ax.plot(forecast.index, forecast, label="Forecast", linestyle="dashed", color="red")
-            ax.set_title("Food Hamper Demand Forecast (ARIMA)")
-            ax.legend()
-            st.pyplot(fig)
+                # Plot Predictions
+                fig, ax = plt.subplots(figsize=(10, 5))
+                ax.plot(time_series.index, time_series, label="Actual")
+                ax.plot(forecast.index, forecast, label="Forecast", linestyle="dashed", color="red")
+                ax.set_title("Food Hamper Demand Forecast (ARIMA)")
+                ax.legend()
+                st.pyplot(fig)
+
+            except Exception as e:
+                st.error(f"⚠️ ARIMA Model Error: {e}")
 
         # XGBoost Model Training
         st.subheader("⚡ Train XGBoost Model")
@@ -91,13 +93,13 @@ if uploaded_file is not None:
             model.fit(X, y)
 
             # Make Predictions
-            future_dates = pd.date_range(start=df['timestamp'].max(), periods=7, freq='D')
+            future_dates = pd.date_range(start=df.index.max(), periods=7, freq='D')
             future_X = np.array([date.timestamp() for date in future_dates]).reshape(-1, 1)
             future_predictions = model.predict(future_X)
 
             # Plot Predictions
             fig2, ax2 = plt.subplots(figsize=(10, 5))
-            ax2.plot(df['timestamp'], df['quantity'], label="Actual")
+            ax2.plot(df.index, df['quantity'], label="Actual")
             ax2.plot(future_dates, future_predictions, label="Forecast", linestyle="dashed", color="red")
             ax2.set_title("Food Hamper Demand Forecast (XGBoost)")
             ax2.legend()
