@@ -1,5 +1,10 @@
 streamlit
 pandas
+numpy
+plotly
 folium
-streamlit-folium
+statsmodels
+xgboost
 matplotlib
+scikit-learn
+streamlit-folium
