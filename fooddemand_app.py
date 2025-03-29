@@ -14,7 +14,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import partial_dependence
 from streamlit_folium import folium_static
 
-
 # Streamlit App Title
 st.title("📍 Food Hamper Demand Prediction & Explainability (XAI)")
 
@@ -24,7 +23,7 @@ uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type=["csv"])
 
 if uploaded_file is not None:
     try:
-        # Load the processed dataset
+        # Load the dataset
         df = pd.read_csv(uploaded_file, encoding="utf-8")
         df["year_month"] = pd.to_datetime(df["year_month"])  # Convert to DateTime
 
@@ -50,12 +49,13 @@ if uploaded_file is not None:
 
         folium_static(m)
 
-        # 📈 Train Random Forest Model for Predictions
+        # 📈 Feature Importance & SHAP Analysis
         st.subheader("📊 Feature Importance & SHAP Analysis")
 
-        # Train a Random Forest model
-        X = df[["latitude", "longitude"]]
+        # Train a Random Forest model using all numerical features except 'quantity'
+        X = df.select_dtypes(include=["number"]).drop(columns=["quantity"])
         y = df["quantity"]
+
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -67,27 +67,28 @@ if uploaded_file is not None:
         feature_importances.plot(kind="barh", ax=ax, title="Feature Importance in Hamper Predictions")
         st.pyplot(fig_feat)
 
-        # 📉 SHAP Explanation for a Sample Prediction
+        # 📊 SHAP Analysis
         st.subheader("🔍 SHAP Explanation for Predictions")
 
         explainer = shap.Explainer(model, X_train)
         shap_values = explainer(X_test)
 
-        # SHAP Summary Plot
-        fig_shap, ax = plt.subplots()
+        # 📌 SHAP Summary Plot
+        st.write("### SHAP Summary: Feature Impact on Predictions")
+        st.write("This plot shows how different features contribute to hamper demand predictions.")
+
+        fig_shap_summary, ax = plt.subplots()
         shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
-        st.pyplot(fig_shap)
+        st.pyplot(fig_shap_summary)
 
-        # 📈 Partial Dependence Plot (PDP)
-        st.subheader("📊 Partial Dependence Plots (PDP)")
+        # 📌 SHAP Waterfall Plot for a Single Prediction
+        st.write("### SHAP Waterfall: How a Single Prediction is Made")
+        st.write("This plot explains how each feature contributes to a specific prediction.")
 
-        pdp_results = partial_dependence(model, X_train, [0])  # PDP for latitude
-        fig_pdp, ax = plt.subplots()
-        ax.plot(pdp_results["values"][0], pdp_results["average"][0], marker="o", linestyle="dashed")
-        ax.set_xlabel("Latitude")
-        ax.set_ylabel("Predicted Hampers")
-        ax.set_title("Partial Dependence of Latitude on Predictions")
-        st.pyplot(fig_pdp)
+        # Select a sample observation for explanation
+        sample_idx = np.random.randint(len(X_test))
+        fig_waterfall = shap.plots.waterfall(shap_values[sample_idx])
+        st.pyplot(fig_waterfall)
 
         # 📦 User Selection for Postal Code Prediction
         st.subheader("📦 Predict Hampers for a Given Postal Code")
@@ -154,5 +155,4 @@ if uploaded_file is not None:
 
 else:
     st.warning("⚠️ Please upload a processed CSV file to proceed.")
-
 
