@@ -11,6 +11,7 @@ import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.inspection import partial_dependence
 from streamlit_folium import folium_static
 
 # Streamlit App Title
@@ -48,8 +49,8 @@ if uploaded_file is not None:
 
         folium_static(m)
 
-        # 📈 Feature Importance for Random Forest
-        st.subheader("📊 Feature Importance in Predictions")
+        # 📈 Train Random Forest Model for Predictions
+        st.subheader("📊 Feature Importance & SHAP Analysis")
 
         # Train a Random Forest model
         X = df[["latitude", "longitude"]]
@@ -76,10 +77,20 @@ if uploaded_file is not None:
         shap.summary_plot(shap_values, X_test, plot_type="bar", show=False)
         st.pyplot(fig_shap)
 
+        # 📈 Partial Dependence Plot (PDP)
+        st.subheader("📊 Partial Dependence Plots (PDP)")
+
+        pdp_results = partial_dependence(model, X_train, [0])  # PDP for latitude
+        fig_pdp, ax = plt.subplots()
+        ax.plot(pdp_results["values"][0], pdp_results["average"][0], marker="o", linestyle="dashed")
+        ax.set_xlabel("Latitude")
+        ax.set_ylabel("Predicted Hampers")
+        ax.set_title("Partial Dependence of Latitude on Predictions")
+        st.pyplot(fig_pdp)
+
         # 📦 User Selection for Postal Code Prediction
         st.subheader("📦 Predict Hampers for a Given Postal Code")
 
-        # User selects a postal code
         postal_code_selected = st.selectbox("Select a Postal Code", df["postal_code"].unique())
 
         if st.button("Predict Hampers"):
