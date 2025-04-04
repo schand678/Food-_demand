@@ -28,7 +28,6 @@ with st.sidebar:
     - Predicts hamper demand by location
     - Forecasts **weekly hamper needs** using time series models
 
-    Built by: **Bardan Dahal**  
     Data Source: *Islamic Family* merged datasets
     """)
     uploaded_file = st.file_uploader("Upload Your Processed CSV", type=["csv"])
