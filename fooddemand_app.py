@@ -11,7 +11,6 @@ import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
 from streamlit_folium import folium_static
 from datetime import timedelta
 
@@ -20,18 +19,19 @@ st.set_page_config(page_title="Food Hamper Demand Forecast", layout="wide")
 st.title("📍 Food Hamper Demand Prediction & Visualization")
 
 with st.sidebar:
-    st.header("📘 About This App")
+    st.header(":blue_book: About This App")
     st.markdown("""
     This app helps **predict and visualize** the demand for food hampers across postal codes in Edmonton.
     
     ### What It Does:
-    - Shows where food hampers are being distributed
-    - Predicts demand using **machine learning** based on postal code
+    - Visualizes hamper distribution on an interactive map
+    - Predicts hamper demand by location
     - Forecasts **weekly hamper needs** using time series models
 
+    Built by: **Bardan Dahal**  
     Data Source: *Islamic Family* merged datasets
     """)
-    uploaded_file = st.file_uploader("📁 Upload Your Processed CSV", type=["csv"])
+    uploaded_file = st.file_uploader("\ud83d\udcc1 Upload Your Processed CSV", type=["csv"])
 
 @st.cache_data
 
@@ -43,16 +43,16 @@ def load_data(file):
 if uploaded_file:
     try:
         df = load_data(uploaded_file)
-        st.success("✅ File uploaded and processed!")
+        st.success("\u2705 File uploaded and processed!")
 
         # =========================
         # 🔍 Dataset Preview
         # =========================
-        st.subheader("🔍 Dataset Preview")
+        st.subheader(":mag: Dataset Preview")
         st.write(df.head())
 
         # =========================
-        # 🗺️ Interactive Map
+        # 🗼 Interactive Map
         # =========================
         st.subheader("📍 Food Hamper Distribution Map")
         map_center = [df["latitude"].mean(), df["longitude"].mean()]
@@ -69,10 +69,10 @@ if uploaded_file:
         folium_static(m)
 
         # =========================
-        # 🤖 Postal Code ML Prediction
+        # 🤖 Interactive Prediction
         # =========================
-        st.subheader("📦 Predict Hamper Quantity per Postal Code")
-        st.markdown("We use a **Random Forest Regressor** trained on geographic and time-related data.")
+        st.subheader("📦 Estimate Hamper Demand by Location")
+        st.markdown("Select a postal code below and click to see predicted demand based on past deliveries and location features.")
 
         postal_code_selected = st.selectbox("Select Postal Code", df["postal_code"].unique())
 
@@ -85,21 +85,17 @@ if uploaded_file:
         model = RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
 
-        # Model performance
-        y_pred = model.predict(X_test)
-        st.markdown(f"**R² Score:** {r2_score(y_test, y_pred):.2f}  |  **MAE:** {mean_absolute_error(y_test, y_pred):.2f}")
-
         if st.button("Predict Now"):
             location_row = df[df["postal_code"] == postal_code_selected].iloc[0]
             pred_input = [[location_row["latitude"], location_row["longitude"], location_row["year_month"].month]]
             prediction = model.predict(pred_input)[0]
-            st.success(f"📦 Estimated Hamper Quantity for {postal_code_selected}: {round(prediction)}")
+            st.success(f"\ud83d\udce6 Estimated Hamper Quantity for {postal_code_selected}: {round(prediction)}")
 
         # =========================
         # ⏳ Weekly Time Series Forecasting
         # =========================
         st.subheader("📉 Weekly Forecast for Food Hamper Demand")
-        st.markdown("We use **ARIMA** to forecast hamper needs for the next 6 weeks based on past weekly trends.")
+        st.markdown("We use **ARIMA** to forecast hamper needs for the next 6 weeks based on past weekly trends. This helps organizations prepare ahead.")
 
         def train_weekly_arima(postal_code):
             df_filtered = df[df["postal_code"] == postal_code].copy()
@@ -107,7 +103,7 @@ if uploaded_file:
             df_filtered = df_filtered[df_filtered > 0]
 
             if len(df_filtered) < 12:
-                st.warning("⚠️ Not enough weekly data for this postal code.")
+                st.warning("\u26a0\ufe0f Not enough weekly data for this postal code.")
                 return None, None, None
 
             model = ARIMA(df_filtered, order=(2,1,1))
@@ -127,11 +123,25 @@ if uploaded_file:
             future_idx = pd.date_range(start=df_weekly.index[-1] + timedelta(weeks=1), periods=6, freq="W")
             ax.plot(future_idx, pred_mean, label="Forecasted Demand", linestyle="dashed", color="red")
             ax.fill_between(future_idx, pred_ci.iloc[:, 0], pred_ci.iloc[:, 1], color='gray', alpha=0.3)
-            ax.set_title(f"📉 Weekly Forecast for {postal_code_selected}")
+            ax.set_title(f"\ud83d\udcc9 Weekly Forecast for {postal_code_selected}")
             ax.legend()
             st.pyplot(fig)
 
+        # =========================
+        # 🚀 Add Some Final Touch
+        # =========================
+        with st.expander("What is ARIMA and How Does It Work?"):
+            st.markdown("""
+            **ARIMA** stands for AutoRegressive Integrated Moving Average.
+
+            - **AutoRegressive (AR)**: Uses past values to predict future ones.
+            - **Integrated (I)**: Deals with trends by differencing values.
+            - **Moving Average (MA)**: Uses past errors to improve predictions.
+
+            In this app, it helps forecast **weekly hamper demand** by looking at historical patterns from previous weeks.
+            """)
+
     except Exception as e:
-        st.error(f"🚨 Something went wrong: {e}")
+        st.error(f"\ud83d\udea8 Something went wrong: {e}")
 else:
-    st.info("📥 Please upload a processed CSV file to get started.")
+    st.info("\ud83d\udcc5 Please upload a processed CSV file to get started.")
