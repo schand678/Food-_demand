@@ -14,12 +14,12 @@ from sklearn.ensemble import RandomForestRegressor
 from streamlit_folium import folium_static
 from datetime import timedelta
 
-# 📌 App Info
+# App Info
 st.set_page_config(page_title="Food Hamper Demand Forecast", layout="wide")
-st.title("📍 Food Hamper Demand Prediction & Visualization")
+st.title("Food Hamper Demand Prediction & Visualization")
 
 with st.sidebar:
-    st.header(":blue_book: About This App")
+    st.header("About This App")
     st.markdown("""
     This app helps **predict and visualize** the demand for food hampers across postal codes in Edmonton.
     
@@ -31,7 +31,7 @@ with st.sidebar:
     Built by: **Bardan Dahal**  
     Data Source: *Islamic Family* merged datasets
     """)
-    uploaded_file = st.file_uploader("\ud83d\udcc1 Upload Your Processed CSV", type=["csv"])
+    uploaded_file = st.file_uploader("Upload Your Processed CSV", type=["csv"])
 
 @st.cache_data
 
@@ -43,18 +43,14 @@ def load_data(file):
 if uploaded_file:
     try:
         df = load_data(uploaded_file)
-        st.success("\u2705 File uploaded and processed!")
+        st.success("File uploaded and processed!")
 
-        # =========================
-        # 🔍 Dataset Preview
-        # =========================
-        st.subheader(":mag: Dataset Preview")
+        # Dataset Preview
+        st.subheader("Dataset Preview")
         st.write(df.head())
 
-        # =========================
-        # 🗼 Interactive Map
-        # =========================
-        st.subheader("📍 Food Hamper Distribution Map")
+        # Interactive Map
+        st.subheader("Food Hamper Distribution Map")
         map_center = [df["latitude"].mean(), df["longitude"].mean()]
         m = folium.Map(location=map_center, zoom_start=10)
         marker_cluster = MarkerCluster().add_to(m)
@@ -68,10 +64,8 @@ if uploaded_file:
 
         folium_static(m)
 
-        # =========================
-        # 🤖 Interactive Prediction
-        # =========================
-        st.subheader("📦 Estimate Hamper Demand by Location")
+        # Interactive Prediction
+        st.subheader("Estimate Hamper Demand by Location")
         st.markdown("Select a postal code below and click to see predicted demand based on past deliveries and location features.")
 
         postal_code_selected = st.selectbox("Select Postal Code", df["postal_code"].unique())
@@ -89,12 +83,10 @@ if uploaded_file:
             location_row = df[df["postal_code"] == postal_code_selected].iloc[0]
             pred_input = [[location_row["latitude"], location_row["longitude"], location_row["year_month"].month]]
             prediction = model.predict(pred_input)[0]
-            st.success(f"\ud83d\udce6 Estimated Hamper Quantity for {postal_code_selected}: {round(prediction)}")
+            st.success(f"Estimated Hamper Quantity for {postal_code_selected}: {round(prediction)}")
 
-        # =========================
-        # ⏳ Weekly Time Series Forecasting
-        # =========================
-        st.subheader("📉 Weekly Forecast for Food Hamper Demand")
+        # Weekly Time Series Forecasting
+        st.subheader("Weekly Forecast for Food Hamper Demand")
         st.markdown("We use **ARIMA** to forecast hamper needs for the next 6 weeks based on past weekly trends. This helps organizations prepare ahead.")
 
         def train_weekly_arima(postal_code):
@@ -103,7 +95,7 @@ if uploaded_file:
             df_filtered = df_filtered[df_filtered > 0]
 
             if len(df_filtered) < 12:
-                st.warning("\u26a0\ufe0f Not enough weekly data for this postal code.")
+                st.warning("Not enough weekly data for this postal code.")
                 return None, None, None
 
             model = ARIMA(df_filtered, order=(2,1,1))
@@ -123,13 +115,11 @@ if uploaded_file:
             future_idx = pd.date_range(start=df_weekly.index[-1] + timedelta(weeks=1), periods=6, freq="W")
             ax.plot(future_idx, pred_mean, label="Forecasted Demand", linestyle="dashed", color="red")
             ax.fill_between(future_idx, pred_ci.iloc[:, 0], pred_ci.iloc[:, 1], color='gray', alpha=0.3)
-            ax.set_title(f"\ud83d\udcc9 Weekly Forecast for {postal_code_selected}")
+            ax.set_title(f"Weekly Forecast for {postal_code_selected}")
             ax.legend()
             st.pyplot(fig)
 
-        # =========================
-        # 🚀 Add Some Final Touch
-        # =========================
+        # Final Touch - Explanation
         with st.expander("What is ARIMA and How Does It Work?"):
             st.markdown("""
             **ARIMA** stands for AutoRegressive Integrated Moving Average.
@@ -142,6 +132,6 @@ if uploaded_file:
             """)
 
     except Exception as e:
-        st.error(f"\ud83d\udea8 Something went wrong: {e}")
+        st.error(f"Something went wrong: {e}")
 else:
-    st.info("\ud83d\udcc5 Please upload a processed CSV file to get started.")
+    st.info("Please upload a processed CSV file to get started.")
