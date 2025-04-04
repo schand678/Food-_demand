@@ -1,3 +1,4 @@
+# 📦 Food Hamper Demand App - Enhanced Version
 
 import streamlit as st
 import pandas as pd
@@ -10,31 +11,51 @@ import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, r2_score
 from streamlit_folium import folium_static
+from datetime import timedelta
 
-# Streamlit App Title
+# 📌 App Info
+st.set_page_config(page_title="Food Hamper Demand Forecast", layout="wide")
 st.title("📍 Food Hamper Demand Prediction & Visualization")
 
-# Sidebar: File Uploader
-st.sidebar.header("Upload Your Processed Dataset")
-uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type=["csv"])
+with st.sidebar:
+    st.header("📘 About This App")
+    st.markdown("""
+    This app helps **predict and visualize** the demand for food hampers across postal codes in Edmonton.
+    
+    ### What It Does:
+    - Shows where food hampers are being distributed
+    - Predicts demand using **machine learning** based on postal code
+    - Forecasts **weekly hamper needs** using time series models
 
-if uploaded_file is not None:
+    Built by: **Bardan Dahal**  
+    Data Source: *Islamic Family* merged datasets
+    """)
+    uploaded_file = st.file_uploader("📁 Upload Your Processed CSV", type=["csv"])
+
+@st.cache_data
+
+def load_data(file):
+    df = pd.read_csv(file, encoding="utf-8")
+    df["year_month"] = pd.to_datetime(df["year_month"])
+    return df
+
+if uploaded_file:
     try:
-        # Load the dataset
-        df = pd.read_csv(uploaded_file, encoding="utf-8")
-        df["year_month"] = pd.to_datetime(df["year_month"])  # Convert to DateTime
+        df = load_data(uploaded_file)
+        st.success("✅ File uploaded and processed!")
 
-        st.success("✅ File successfully uploaded!")
-
-        # Display dataset preview
-        st.subheader("📌 Dataset Preview")
+        # =========================
+        # 🔍 Dataset Preview
+        # =========================
+        st.subheader("🔍 Dataset Preview")
         st.write(df.head())
 
-        # 📍 Interactive Map of Hamper Distribution
+        # =========================
+        # 🗺️ Interactive Map
+        # =========================
         st.subheader("📍 Food Hamper Distribution Map")
-        st.write("This map shows the number of hampers distributed per postal code location.")
-
         map_center = [df["latitude"].mean(), df["longitude"].mean()]
         m = folium.Map(location=map_center, zoom_start=10)
         marker_cluster = MarkerCluster().add_to(m)
@@ -48,69 +69,70 @@ if uploaded_file is not None:
 
         folium_static(m)
 
-        # 📦 User Selection for Postal Code Prediction
-        st.subheader("📦 Predict Hampers for a Given Postal Code")
-        st.write("Select a postal code to see the estimated number of hampers needed for that location.")
+        # =========================
+        # 🤖 Postal Code ML Prediction
+        # =========================
+        st.subheader("📦 Predict Hamper Quantity per Postal Code")
+        st.markdown("We use a **Random Forest Regressor** trained on geographic and time-related data.")
 
-        postal_code_selected = st.selectbox("Select a Postal Code", df["postal_code"].unique())
+        postal_code_selected = st.selectbox("Select Postal Code", df["postal_code"].unique())
 
-        # Train a Random Forest model using `latitude, longitude`
-        X = df[["latitude", "longitude"]]
+        # Features and model
+        df["month"] = df["year_month"].dt.month
+        X = df[["latitude", "longitude", "month"]]
         y = df["quantity"]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         model = RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(X_train, y_train)
 
-        if st.button("Predict Hampers"):
+        # Model performance
+        y_pred = model.predict(X_test)
+        st.markdown(f"**R² Score:** {r2_score(y_test, y_pred):.2f}  |  **MAE:** {mean_absolute_error(y_test, y_pred):.2f}")
+
+        if st.button("Predict Now"):
             location_row = df[df["postal_code"] == postal_code_selected].iloc[0]
-            lat_input, lon_input = location_row["latitude"], location_row["longitude"]
-            prediction = model.predict([[lat_input, lon_input]])[0]
-            st.success(f"📦 Predicted Hampers for Postal Code {postal_code_selected}: {round(prediction)}")
+            pred_input = [[location_row["latitude"], location_row["longitude"], location_row["year_month"].month]]
+            prediction = model.predict(pred_input)[0]
+            st.success(f"📦 Estimated Hamper Quantity for {postal_code_selected}: {round(prediction)}")
 
-        # 📈 Time Series Forecasting (ARIMA)
-        st.subheader("📉 Future Hamper Demand Forecasting")
-        st.write("This section predicts future demand based on historical data.")
+        # =========================
+        # ⏳ Weekly Time Series Forecasting
+        # =========================
+        st.subheader("📉 Weekly Forecast for Food Hamper Demand")
+        st.markdown("We use **ARIMA** to forecast hamper needs for the next 6 weeks based on past weekly trends.")
 
-        def train_arima(postal_code):
-            df_filtered = df[df["postal_code"] == postal_code].set_index("year_month")
+        def train_weekly_arima(postal_code):
+            df_filtered = df[df["postal_code"] == postal_code].copy()
+            df_filtered = df_filtered.set_index("year_month").resample("W")["quantity"].sum()
+            df_filtered = df_filtered[df_filtered > 0]
 
             if len(df_filtered) < 12:
-                st.warning("⚠️ Not enough historical data for reliable prediction.")
-                return None, None
+                st.warning("⚠️ Not enough weekly data for this postal code.")
+                return None, None, None
 
-            try:
-                model = ARIMA(df_filtered["quantity"], order=(2, 1, 1))
-                model_fit = model.fit()
+            model = ARIMA(df_filtered, order=(2,1,1))
+            model_fit = model.fit()
+            forecast = model_fit.get_forecast(steps=6)
+            pred_mean = forecast.predicted_mean
+            pred_ci = forecast.conf_int()
 
-                # Predict next 6 months
-                forecast = model_fit.get_forecast(steps=6)
-                pred_mean = forecast.predicted_mean
-                pred_ci = forecast.conf_int()
+            return df_filtered, pred_mean, pred_ci
 
-                pred_index = pd.date_range(start=df_filtered.index[-1], periods=6, freq="M")
+        result = train_weekly_arima(postal_code_selected)
 
-                return df_filtered, pred_mean, pred_ci, pred_index
-
-            except Exception as e:
-                st.error(f"⚠️ ARIMA Model Error: {e}")
-                return None, None, None, None
-
-        df_filtered, pred_mean, pred_ci, pred_index = train_arima(postal_code_selected)
-
-        if df_filtered is not None:
-            fig_arima, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(df_filtered.index, df_filtered["quantity"], label="Actual Demand")
-            ax.plot(pred_index, pred_mean, label="Predicted Demand", linestyle="dashed", color="red")
-            ax.fill_between(pred_index, pred_ci.iloc[:, 0], pred_ci.iloc[:, 1], color='gray', alpha=0.3)
-            ax.set_title(f"Hamper Demand Forecast for {postal_code_selected}")
+        if result:
+            df_weekly, pred_mean, pred_ci = result
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.plot(df_weekly.index, df_weekly.values, label="Actual Weekly Demand")
+            future_idx = pd.date_range(start=df_weekly.index[-1] + timedelta(weeks=1), periods=6, freq="W")
+            ax.plot(future_idx, pred_mean, label="Forecasted Demand", linestyle="dashed", color="red")
+            ax.fill_between(future_idx, pred_ci.iloc[:, 0], pred_ci.iloc[:, 1], color='gray', alpha=0.3)
+            ax.set_title(f"📉 Weekly Forecast for {postal_code_selected}")
             ax.legend()
-            st.pyplot(fig_arima)
+            st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"⚠️ Error processing the file: {e}")
-
+        st.error(f"🚨 Something went wrong: {e}")
 else:
-    st.warning("⚠️ Please upload a processed CSV file to proceed.")
-
-
+    st.info("📥 Please upload a processed CSV file to get started.")
