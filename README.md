@@ -48,7 +48,8 @@ streamlit run app.py
 ### Link to Application
 
 Access our deployed demo:  
-👉 [Demo App]([https://fooddemand-yg3xzlfgfu3bpf66zzvtg4.streamlit.app/](https://food-demand123.streamlit.app/))
+👉 [Demo App](https://fooddemand-yg3xzlfgfu3bpf66zzvtg4.streamlit.app/)
+
 
 ---
 
